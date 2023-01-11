@@ -48,20 +48,16 @@ def padding(message: bytes) -> bytes:
 
 def prepare(message: bytes) -> list:
     """
-    from a multiple of 512 bits stream, divide to 512 bits block M1, M2, ..., Mn
+    divide message after padding to n 512-bits-blocks M1, M2, ..., Mn
     
     Input:
         (bytes) b'hello\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00('
     
     Output:
-        (list) [[1751477356, 1870659584, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 40]]
+        (list)(int) [[1751477356, 1870659584, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 40]]
     """
     M = []
     n_blocks = len(message) // 64
-
-    message = bytearray(message)
-
-    print(message[0])
 
     for i in range(n_blocks):  # 64 Bytes per Block
         m = []
@@ -70,6 +66,12 @@ def prepare(message: bytes) -> list:
             for k in range(4):  # 4 Bytes per Word
                 n <<= 8
                 n += message[i*64 + j*4 + k]
+
+            # try:
+            #     n = bytes.fromhex(hex(n)[2:])
+            # except:
+            #     n = b"\x00"
+
             m.append(n)
 
         M.append(m)
@@ -79,14 +81,16 @@ def prepare(message: bytes) -> list:
 
 
 def process_block(block):
-    MASK = 2**32-1
+    """
+    process each block
+    """
+    MODULO = 2**32-1
 
-    W = block[:]
+    W = block
     for t in range(16, 80):
-        W.append(ROTL(1, (W[t-3] ^ W[t-8] ^ W[t-14] ^ W[t-16]))
-                    & MASK)
+        W.append(ROTL(1, (W[t-3] ^ W[t-8] ^ W[t-14] ^ W[t-16])) & MODULO)
 
-    a, b, c, d, e = H[:]
+    a, b, c, d, e = H
 
     for t in range(80):
         if t <= 19:
@@ -102,36 +106,46 @@ def process_block(block):
             K = 0xca62c1d6
             f = b ^ c ^ d
 
-        T = ((ROTL(5, a) + f + e + K + W[t]) & MASK)
+        T = ((ROTL(5, a) + f + e + K + W[t]) & MODULO)
         e = d
         d = c
-        c = ROTL(30, b) & MASK
+        c = ROTL(30, b) & MODULO
         b = a
         a = T
 
-        #SHA1.debug_print(t, a,b,c,d,e)
-
-    H[0] = (a + H[0]) & MASK
-    H[1] = (b + H[1]) & MASK
-    H[2] = (c + H[2]) & MASK
-    H[3] = (d + H[3]) & MASK
-    H[4] = (e + H[4]) & MASK
+    H[0] = (a + H[0]) & MODULO
+    H[1] = (b + H[1]) & MODULO
+    H[2] = (c + H[2]) & MODULO
+    H[3] = (d + H[3]) & MODULO
+    H[4] = (e + H[4]) & MODULO
 
 
 
-def main():
-    os.system("cls")
-    message = b"hello"
+def hash(message):
+    message = bytes(message, "utf-8")
+
     message = padding(message)
+    print("after padding")
+    print(message)
+    print("-----")
+
     message = prepare(message)
+    print("after preparing")
+    print(message)
+    print("-----")
+
     for block in message:
         process_block(block)
     result = ''
     for h in H:
-        s += (hex(h)[2:]).rjust(8, '0')
-    print(result)
+        result += (hex(h)[2:]).rjust(8, '0')
+    return result
 
 
 
 if __name__ == "__main__":
-    main()
+    os.system("cls")
+    message = "hello"
+    result = hash(message)
+    print(message)
+    print(result)
